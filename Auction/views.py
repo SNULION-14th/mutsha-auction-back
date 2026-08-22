@@ -132,9 +132,17 @@ class AuctionCreateView(APIView):
         if serializer.is_valid():
             # 현재 로그인한 사용자를 판매자로 설정
             auction = serializer.save(seller=user)
-
-            #TODO: 
             response_serializer = AuctionSerializer(auction)
+
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                "global_notifications",
+                {
+                    "type": "auction_created",
+                    "data" : f"새 경매 [{auction.title}]가 등록되었습니다!"
+                },
+            )
+
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
