@@ -248,6 +248,7 @@ class KakaoSignInCallbackView(APIView):
             f"https://kauth.kakao.com/oauth/token"
             f"?grant_type=authorization_code"
             f"&client_id={kakao_client_id}"
+            f"&client_secret={kakao_client_secret}"
             f"&redirect_uri={kakao_redirect_uri}"
             f"&code={code}"
         )

@@ -93,10 +93,11 @@ SECRET_KEY=your-secret-key-here
 DEBUG=True
 
 # Kakao Settings
-KAKAO_SECRET_KEY=your-kakao-secret-key
-KAKAO_REDIRECT_URI=http://localhost:8000/api/user/kakao/callback
-KAKAO_PAY_KEY=your-kakao-pay-key
-CID=TC0ONETIME
+KAKAO_SECRET_KEY=your-kakao-rest-api-key
+KAKAO_CLIENT_SECRET=your-kakao-client-secret
+KAKAO_REDIRECT_URI=http://localhost:5173/auth
+KAKAO_PAY_KEY=your-kakao-pay-secret-key-dev
+KAKAO_PAY_CID=TC0ONETIME
 ```
 
 ### 5. 데이터베이스 마이그레이션
@@ -161,7 +162,8 @@ python manage.py test
 | 변수명 | 설명 | 예시 |
 |--------|------|------|
 | `SECRET_KEY` | Django 시크릿 키 | django-insecure-... |
-| `KAKAO_SECRET_KEY` | 카카오 앱 시크릿 키 | your-kakao-secret |
-| `KAKAO_REDIRECT_URI` | 카카오 로그인 리다이렉트 URI | http://localhost:8000/api/user/kakao/callback |
-| `KAKAO_PAY_KEY` | 카카오페이 시크릿 키 | your-kakao-pay-secret |
-| `CID` | 카카오페이 가맹점 ID | TC0ONETIME |
+| `KAKAO_SECRET_KEY` | 카카오 앱의 REST API 키 (= client_id) | your-kakao-rest-api-key |
+| `KAKAO_CLIENT_SECRET` | 카카오 REST API 키의 클라이언트 시크릿 | your-kakao-client-secret |
+| `KAKAO_REDIRECT_URI` | 카카오 로그인 리다이렉트 URI (프론트 `/auth`) | http://localhost:5173/auth |
+| `KAKAO_PAY_KEY` | 카카오페이 Secret key(dev) | your-kakao-pay-secret-key-dev |
+| `KAKAO_PAY_CID` | 카카오페이 가맹점 코드 (테스트용) | TC0ONETIME |
