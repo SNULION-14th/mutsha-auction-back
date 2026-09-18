@@ -14,6 +14,7 @@ import requests
 from django.conf import settings
 kakao_client_id = settings.KAKAO_SECRET_KEY
 kakao_redirect_uri = settings.KAKAO_REDIRECT_URI
+kakao_client_secret = settings.KAKAO_CLIENT_SECRET
 
 from .serializers import UserSerializer, UserProfileSerializer, UserProfileSerializerForUpdate
 from .request_serializers import SignUpRequestSerializer, SignInRequestSerializer, TokenRefreshRequestSerializer, UserProfileUpdateRequestSerializer
@@ -255,7 +256,7 @@ class KakaoSignInCallbackView(APIView):
     def _process_kakao_login(self, request):
         ### 프론트로 들어온 code를 받아서 카카오로부터 access_token을 받아옴
         code = request.GET.get("code")
-        request_uri = f"https://kauth.kakao.com/oauth/token?grant_type=authorization_code&client_id={kakao_client_id}&redirect_uri={kakao_redirect_uri}&code={code}"
+        request_uri = f"https://kauth.kakao.com/oauth/token?grant_type=authorization_code&client_id={kakao_client_id}&client_secret={kakao_client_secret}&redirect_uri={kakao_redirect_uri}&code={code}"
         response = requests.post(request_uri)
         access_token = response.json().get("access_token")
 
