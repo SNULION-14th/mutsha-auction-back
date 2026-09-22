@@ -12,6 +12,11 @@ from drf_yasg import openapi
 from .models import UserProfile
 from django.conf import settings
 
+import requests
+kakao_client_id = settings.KAKAO_SECRET_KEY
+kakao_redirect_uri = settings.KAKAO_REDIRECT_URI
+kakao_client_secret = settings.KAKAO_CLIENT_SECRET
+
 
 from .serializers import UserSerializer, UserProfileSerializer, UserProfileSerializerForUpdate
 from .request_serializers import SignUpRequestSerializer, SignInRequestSerializer, TokenRefreshRequestSerializer, UserProfileUpdateRequestSerializer
