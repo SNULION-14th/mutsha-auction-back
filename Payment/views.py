@@ -28,6 +28,7 @@ cid = settings.KAKAO_PAY_CID
 payready_url = 'https://open-api.kakaopay.com/online/v1/payment/ready'
 ### 이건 나중에 결제 승인 API 요청시 사용될 URL !
 payapprove_url = 'https://open-api.kakaopay.com/online/v1/payment/approve'
+payorder_url = 'https://open-api.kakaopay.com/online/v1/payment/order'
 
 pay_header = {
     'Content-Type': 'application/json',
@@ -162,3 +163,42 @@ class PayApproveView(APIView):
                     )
 
         return Response(response.json(), status=response.status_code)
+
+
+class PaymentHistoryView(APIView):
+    """Return the authenticated user's approved payments with KakaoPay details."""
+
+    def get(self, request):
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        payments = Payment.objects.filter(user=user, pay_status='approved').order_by('-id')
+        histories = []
+
+        # KakaoPay's order API only accepts one tid at a time, so each approved
+        # payment is looked up individually on the server (where the secret key is safe).
+        for payment in payments:
+            try:
+                response = requests.post(
+                    payorder_url,
+                    headers=pay_header,
+                    json={'cid': cid, 'tid': payment.tid},
+                    timeout=10,
+                )
+                response.raise_for_status()
+                order = response.json()
+            except (requests.RequestException, ValueError):
+                # A single unavailable order must not hide the rest of the user's history.
+                continue
+
+            amount = order.get('amount') or {}
+            histories.append({
+                'tid': payment.tid,
+                'item_name': order.get('item_name', ''),
+                'amount': amount.get('total'),
+                'payment_method_type': order.get('payment_method_type', ''),
+                'approved_at': order.get('approved_at'),
+            })
+
+        return Response(histories, status=status.HTTP_200_OK)
