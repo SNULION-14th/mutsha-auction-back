@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     # Internal
     'UserProfile',
     'Point',
+    'Payment',
     'Auction',
 ]
 
