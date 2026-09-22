@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import SignUpView, SignInView, SignOutView, TokenRefreshView, UserProfileListView, UserProfileDetailView, CheckUsernameView, RemainingPointDeductView
+from .views import SignUpView, SignInView, SignOutView, TokenRefreshView, UserProfileListView, UserProfileDetailView, CheckUsernameView, RemainingPointDeductView, KakaoSignInCallbackView, CheckUsernameView, RemainingPointDeductView
 
 
 app_name = "UserProfile"
@@ -12,5 +12,7 @@ urlpatterns = [
     path("userinfo/", UserProfileListView.as_view()),
     path("me/", UserProfileDetailView.as_view()),
     path("check/", CheckUsernameView.as_view()),
+    path("kakao/callback/", KakaoSignInCallbackView.as_view()),
     path("pointreduce/", RemainingPointDeductView.as_view()),
+    path("kakao/callback/", KakaoSignInCallbackView.as_view()),
 ]
