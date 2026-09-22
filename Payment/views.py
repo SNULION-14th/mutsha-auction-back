@@ -6,6 +6,7 @@ from .models import Payment
 from UserProfile.models import UserProfile
 import requests
 import json
+import re
 
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
@@ -52,7 +53,13 @@ class PayReadyView(APIView):
         ### 🔻 이 부분 추가 ###
         if response.status_code == 200:
             item_name = request.data['item_name']
-            point_amount = int(item_name)
+            point_match = re.search(r'\d+', item_name)
+            if not point_match:
+                return Response(
+                    {"detail": "상품명에서 충전할 잔 수를 확인할 수 없습니다."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            point_amount = int(point_match.group())
             
             Payment.objects.create(
                 tid=response_data['tid'],
