@@ -67,3 +67,98 @@ class PayReadyView(APIView):
             )
 
         return Response(response.json(), status=response.status_code)
+
+class PayApproveView(APIView):
+    def post(self, request):
+    
+        #### 1
+        user = request.user
+        if not user.is_authenticated:
+            return Response({"detail": "please signin."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        #### 2
+        pg_token = request.data['pg_token']
+        tid = request.data['tid']
+        
+        #### 3
+        pay_hist = Payment.objects.get(tid=tid)
+        pay_data = {
+            'cid': cid,
+            'tid': tid,
+            'partner_order_id': pay_hist.partner_order_id,
+            'partner_user_id': pay_hist.partner_user_id,
+            'pg_token': pg_token
+        }
+        
+        #### 4
+        pay_data = json.dumps(pay_data)
+        response = requests.post(payapprove_url, headers=pay_header, data=pay_data)
+
+        if response.status_code == 200:
+            response_data = response.json()
+            
+            # 이미 승인된 결제인지 확인
+            was_already_approved = pay_hist.pay_status == 'approved'
+            
+            # 원자적 트랜잭션으로 중복 처리 방지 (재시도 로직 포함)
+            max_retries = 3
+            retry_delay = 0.1  # 100ms
+            
+            for attempt in range(max_retries):
+                try:
+                    with transaction.atomic():
+                        # select_for_update로 동시성 제어
+                        userprofile = UserProfile.objects.select_for_update().get(user=user)
+                        
+                        # 포인트 업데이트 (이미 승인된 결제가 아닌 경우에만)
+                        point_info = {
+                            'old_points': userprofile.remaining_points,
+                            'added_points': 0,
+                            'new_points': userprofile.remaining_points
+                        }
+                        
+                        if not was_already_approved:
+                            # 포인트 업데이트 전후 로깅
+                            old_points = userprofile.remaining_points
+                            added_points = int(pay_hist.point)
+                            
+                            # 직접 계산하여 업데이트 (F() 표현식 대신)
+                            new_points = old_points + added_points
+                            userprofile.remaining_points = new_points
+                            userprofile.save()
+                            
+                            point_info = {
+                                'old_points': old_points,
+                                'added_points': added_points,
+                                'new_points': new_points
+                            }
+                        
+                        # 결제 상태 업데이트
+                        pay_hist.pay_status = 'approved'
+                        pay_hist.save()
+                    
+                    response_data['point_info'] = point_info
+                    return Response(response_data, status=response.status_code)
+                    
+                except (OperationalError, IntegrityError) as e:
+                    if attempt < max_retries - 1:
+                        # 데이터베이스 잠금 오류 시 재시도
+                        print(f"Database lock error (attempt {attempt + 1}): {e}")
+                        time.sleep(retry_delay * (2 ** attempt))  # 지수 백오프
+                        continue
+                    else:
+                        # 최대 재시도 횟수 초과
+                        print(f"Database error after {max_retries} attempts: {e}")
+                        return Response(
+                            {"detail": "결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}, 
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                        )
+                except Exception as e:
+                    # 기타 예상치 못한 오류
+                    print(f"Unexpected error in payment approval: {e}")
+                    return Response(
+                        {"detail": "결제 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}, 
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+        return Response(response.json(), status=response.status_code)
