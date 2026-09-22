@@ -7,6 +7,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth.hashers import make_password
+import requests
 from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import UserProfile
@@ -165,9 +166,11 @@ class UserProfileDetailView(APIView):
             user_profile = UserProfile.objects.get(user=user)
             profilepic_id = request.data.get("profilepic_id")
             nickname = request.data.get("nickname")
-            if not profilepic_id or not nickname:
-                return Response({"detail": "[profilepic_id, nickname] fields missing."}, status=status.HTTP_400_BAD_REQUEST)
-            user_profile.profilepic_id=profilepic_id # 1~6 사이 값이어야 함!
+            if not nickname:
+                return Response({"detail": "nickname field missing."}, status=status.HTTP_400_BAD_REQUEST)
+            if profilepic_id is not None and profilepic_id not in range(1, 7):
+                return Response({"detail": "profilepic_id must be between 1 and 6 or null."}, status=status.HTTP_400_BAD_REQUEST)
+            user_profile.profilepic_id = profilepic_id
             user_profile.nickname = nickname
             user_profile.save()
             serializer = UserProfileSerializerForUpdate(user_profile)
@@ -242,31 +245,68 @@ class KakaoSignInCallbackView(APIView):
         return self._process_kakao_login(request)
 
     def _process_kakao_login(self, request):
-        ### 프론트로 들어온 code를 받아서 카카오로부터 access_token을 받아옴
-        code = request.GET.get("code")
-        request_uri = (
-            f"https://kauth.kakao.com/oauth/token"
-            f"?grant_type=authorization_code"
-            f"&client_id={kakao_client_id}"
-            f"&client_secret={kakao_client_secret}"
-            f"&redirect_uri={kakao_redirect_uri}"
-            f"&code={code}"
-        )
-        response = requests.post(request_uri)
-        access_token = response.json().get("access_token")
+        code = request.query_params.get("code")
+        if not code:
+            return Response(
+                {"detail": "카카오 인가 코드가 없습니다."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        ### 카카오로부터 받은 access_token을 이용해 카카오톡 유저 정보를 받아옴
-        user_info = requests.get(
+        token_response = requests.post(
+            "https://kauth.kakao.com/oauth/token",
+            data={
+                "grant_type": "authorization_code",
+                "client_id": settings.KAKAO_SECRET_KEY,
+                "client_secret": settings.KAKAO_CLIENT_SECRET,
+                "redirect_uri": settings.KAKAO_REDIRECT_URI,
+                "code": code,
+            },
+            timeout=10,
+        )
+
+        if token_response.status_code != status.HTTP_200_OK:
+            return Response(
+                {"detail": "카카오 토큰 발급에 실패했습니다."},
+                status=token_response.status_code,
+            )
+
+        access_token = token_response.json().get("access_token")
+        if not access_token:
+            return Response(
+                {"detail": "카카오 access token이 없습니다."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        user_info_response = requests.get(
             "https://kapi.kakao.com/v2/user/me",
             headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10,
         )
-        user_info = user_info.json()
+        if user_info_response.status_code != status.HTTP_200_OK:
+            return Response(
+                {"detail": "카카오 사용자 정보를 가져오지 못했습니다."},
+                status=user_info_response.status_code,
+            )
 
-        return Response(
-            {
-                "message": "카카오 로그인 처리 완료 (무조건 200)",
-                "access_token": access_token,
-                "user_info": user_info,
-            },
-            status=200,
-        )
+        kakao_user_id = user_info_response.json().get("id")
+        if not kakao_user_id:
+            return Response(
+                {"detail": "카카오 사용자 식별자가 없습니다."},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
+
+        username = f"kakao_{kakao_user_id}"
+        user = User.objects.filter(username=username).first()
+
+        if user is None:
+            user = User(username=username)
+            user.set_unusable_password()
+            user.save()
+            UserProfile.objects.create(user=user, is_social_login=True)
+        else:
+            UserProfile.objects.get_or_create(
+                user=user,
+                defaults={"is_social_login": True},
+            )
+
+        return set_token_on_response_cookie(user, status.HTTP_200_OK)
