@@ -162,25 +162,38 @@ class PaymentHistoryView(APIView):
         if not request.user.is_authenticated:
             return Response({"detail": "please signin"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        payments = Payment.objects.filter(user=request.user).order_by("-created_at")
-        # 카카오페이 주문 조회 API를 호출해 최신 결제 상태를 확인한다.
+        # DB에 보관한 tid로, 결제 완료 건마다 카카오페이 주문 조회 API를 호출한다.
+        payments = Payment.objects.filter(
+            user=request.user,
+            status=Payment.Status.APPROVED,
+        ).exclude(tid="").order_by("-approved_at")
         result = []
         for payment in payments:
-            item = serialize_payment(payment)
-            if payment.tid:
-                try:
-                    kakao_response = requests.post(
-                        "https://open-api.kakaopay.com/online/v1/payment/order",
-                        headers={"Authorization": f"SECRET_KEY {settings.KAKAO_PAY_KEY}", "Content-Type": "application/json"},
-                        json={"cid": settings.KAKAO_PAY_CID, "tid": payment.tid},
-                        timeout=5,
-                    )
-                    if kakao_response.ok:
-                        kakao_data = kakao_response.json()
-                        item["kakao_status"] = kakao_data.get("status")
-                except requests.RequestException:
-                    item["kakao_status"] = None
-            result.append(item)
+            try:
+                kakao_response = requests.post(
+                    "https://open-api.kakaopay.com/online/v1/payment/order",
+                    headers={
+                        "Authorization": f"SECRET_KEY {settings.KAKAO_PAY_KEY}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"cid": settings.KAKAO_PAY_CID, "tid": payment.tid},
+                    timeout=10,
+                )
+                kakao_response.raise_for_status()
+                kakao_data = kakao_response.json()
+            except requests.RequestException:
+                return Response(
+                    {"detail": "카카오페이 주문 조회에 실패했습니다."},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+            result.append({
+                "id": payment.id,
+                "item_name": kakao_data.get("item_name"),
+                "amount": kakao_data.get("amount", {}).get("total"),
+                "payment_method_type": kakao_data.get("payment_method_type"),
+                "approved_at": kakao_data.get("approved_at"),
+            })
         return Response(result)
 
 
