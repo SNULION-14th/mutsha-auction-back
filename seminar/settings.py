@@ -31,6 +31,13 @@ environ.Env.read_env(
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
 
+# 카카오 로그인 설정
+KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY')
+KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI')
+KAKAO_CLIENT_SECRET = env('KAKAO_CLIENT_SECRET')
+KAKAO_PAY_KEY = env('KAKAO_PAY_KEY')
+KAKAO_PAY_CID = env('KAKAO_PAY_CID')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -57,6 +64,7 @@ INSTALLED_APPS = [
     # Internal
     'UserProfile',
     'Point',
+    'Payment',
     'Auction',
 ]
 
@@ -127,6 +135,10 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+        'OPTIONS': {
+            'timeout': 30,  # 데이터베이스 잠금 대기 시간 (초)
+            'init_command': "PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA cache_size=10000; PRAGMA temp_store=MEMORY;",
+        }
     }
 }
 
