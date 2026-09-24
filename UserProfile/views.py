@@ -11,6 +11,11 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import UserProfile
 from django.conf import settings
+import requests
+
+kakao_client_id = settings.KAKAO_SECRET_KEY
+kakao_redirect_uri = settings.KAKAO_REDIRECT_URI
+kakao_client_secret = settings.KAKAO_CLIENT_SECRET
 
 
 from .serializers import UserSerializer, UserProfileSerializer, UserProfileSerializerForUpdate
@@ -235,6 +240,15 @@ class CheckUsernameView(APIView):
         return Response({"message": "Username is available"}, status=status.HTTP_200_OK)
 
 class KakaoSignInCallbackView(APIView):
+    @swagger_auto_schema(
+        operation_id="카카오 로그인",
+        operation_description="""
+        카카오 간편 로그인을 진행합니다.
+        참고사항: 프론트 없이는 code 값을 발급받을 수 없기 때문에, 스웨거 단독 테스트가 불가능합니다.
+        """,
+        request_body=None,
+        responses={200: UserProfileSerializer},
+    )
     def get(self, request):
         return self._process_kakao_login(request)
 
@@ -262,11 +276,19 @@ class KakaoSignInCallbackView(APIView):
         )
         user_info = user_info.json()
 
-        return Response(
-            {
-                "message": "카카오 로그인 처리 완료 (무조건 200)",
-                "access_token": access_token,
-                "user_info": user_info,
-            },
-            status=200,
-        )
+        try:
+            user = User.objects.get(username=user_info.get("id"))
+        except User.DoesNotExist:
+            user_data = {
+                "username": user_info.get("id"),
+                "password": "social_login_password",
+            }
+            user_serializer = UserSerializer(data=user_data)
+            if user_serializer.is_valid(raise_exception=True):
+                user_serializer.validated_data["password"] = make_password(
+                    user_serializer.validated_data["password"]
+                )
+                user = user_serializer.save()
+                UserProfile.objects.create(user=user, is_social_login=True)
+
+        return set_token_on_response_cookie(user, status_code=status.HTTP_200_OK)
