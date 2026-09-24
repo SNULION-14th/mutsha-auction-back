@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     'UserProfile',
     'Point',
     'Auction',
+    'Payment',
 ]
 
 MIDDLEWARE = [
