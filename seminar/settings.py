@@ -31,6 +31,13 @@ environ.Env.read_env(
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = env('SECRET_KEY')
 
+KAKAO_SECRET_KEY = env('KAKAO_SECRET_KEY')
+KAKAO_REDIRECT_URI = env('KAKAO_REDIRECT_URI')
+KAKAO_CLIENT_SECRET = env('KAKAO_CLIENT_SECRET')
+
+KAKAO_PAY_KEY = env('KAKAO_PAY_KEY')
+KAKAO_PAY_CID = env('KAKAO_PAY_CID')
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
@@ -58,6 +65,7 @@ INSTALLED_APPS = [
     'UserProfile',
     'Point',
     'Auction',
+    'Payment',
 ]
 
 MIDDLEWARE = [
@@ -74,15 +82,15 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
 
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
 ]
 
 SESSION_COOKIE_SAMESITE = None
