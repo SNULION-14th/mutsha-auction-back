@@ -45,6 +45,7 @@ urlpatterns = [
     path('api/user/', include('UserProfile.urls')),
     path('api/point/', include('Point.urls')),
     path("api/auction/", include("Auction.urls")),
+    path("api/payment/", include("Payment.urls")),
 ]
 
 # 개발 환경에서 미디어 파일 서빙
