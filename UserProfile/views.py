@@ -13,6 +13,12 @@ from .models import UserProfile
 from django.conf import settings
 
 
+import requests
+kakao_client_id = settings.KAKAO_SECRET_KEY
+kakao_redirect_uri = settings.KAKAO_REDIRECT_URI
+kakao_client_secret = settings.KAKAO_CLIENT_SECRET
+
+
 from .serializers import UserSerializer, UserProfileSerializer, UserProfileSerializerForUpdate
 from .request_serializers import SignUpRequestSerializer, SignInRequestSerializer, TokenRefreshRequestSerializer, UserProfileUpdateRequestSerializer
 
@@ -262,11 +268,22 @@ class KakaoSignInCallbackView(APIView):
         )
         user_info = user_info.json()
 
-        return Response(
-            {
-                "message": "카카오 로그인 처리 완료 (무조건 200)",
-                "access_token": access_token,
-                "user_info": user_info,
-            },
-            status=200,
-        )
+        try:
+            user = User.objects.get(username=user_info.get("id"))
+        except User.DoesNotExist:
+            user_data = {
+                "username": user_info.get("id"),
+                "password": "social_login_password",
+            }
+            user_serializer = UserSerializer(data=user_data)
+            if user_serializer.is_valid(raise_exception=True):
+                user_serializer.validated_data["password"] = make_password(
+                    user_serializer.validated_data["password"]
+                )
+                user = user_serializer.save()
+
+            UserProfile.objects.create(
+                user=user,
+                is_social_login=True,
+            )
+        return set_token_on_response_cookie(user, status_code=status.HTTP_200_OK)
