@@ -11,6 +11,7 @@ from drf_yasg.utils import swagger_auto_schema
 from drf_yasg import openapi
 from .models import UserProfile
 from django.conf import settings
+import requests
 
 
 from .serializers import UserSerializer, UserProfileSerializer, UserProfileSerializerForUpdate
@@ -21,8 +22,8 @@ def set_token_on_response_cookie(user, status_code) -> Response:
     user_profile = UserProfile.objects.get(user=user)
     serialized_data = UserProfileSerializer(user_profile).data
     res = Response(serialized_data, status=status_code)
-    res.set_cookie("refresh_token", value=str(token), httponly=False, samesite="Lax", secure=False)
-    res.set_cookie("access_token", value=str(token.access_token), httponly=False, samesite="Lax", secure=False)
+    res.set_cookie("refresh_token", value=str(token), httponly=True, samesite="Lax", secure=not settings.DEBUG)
+    res.set_cookie("access_token", value=str(token.access_token), httponly=True, samesite="Lax", secure=not settings.DEBUG)
     return res
 
 
@@ -74,7 +75,7 @@ class TokenRefreshView(APIView):
         manual_parameters=[openapi.Parameter("Authorization", openapi.IN_HEADER, description="access token", type=openapi.TYPE_STRING)]
     )
     def post(self, request):
-        refresh_token = request.data.get("refresh")
+        refresh_token = request.data.get("refresh") or request.COOKIES.get("refresh_token")
         if not refresh_token:
             return Response(
                 {"detail": "no refresh token"}, status=status.HTTP_400_BAD_REQUEST
@@ -88,7 +89,7 @@ class TokenRefreshView(APIView):
             )
         new_access_token = str(RefreshToken(refresh_token).access_token)
         response = Response({"detail": "token refreshed"}, status=status.HTTP_200_OK)
-        response.set_cookie("access_token", value=str(new_access_token), httponly=False, samesite="Lax", secure=False)
+        response.set_cookie("access_token", value=str(new_access_token), httponly=True, samesite="Lax", secure=not settings.DEBUG)
         return response
 
 
@@ -270,3 +271,30 @@ class KakaoSignInCallbackView(APIView):
             },
             status=200,
         )
+
+
+class KakaoSignInCallbackView(APIView):
+    """Exchange a frontend authorization code and issue local JWT cookies."""
+    def post(self, request):
+        code = request.data.get("code") or request.query_params.get("code")
+        if not code:
+            return Response({"detail": "authorization code is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            token_response = requests.post("https://kauth.kakao.com/oauth/token", data={
+                "grant_type": "authorization_code", "client_id": settings.KAKAO_SECRET_KEY,
+                "client_secret": settings.KAKAO_CLIENT_SECRET, "redirect_uri": settings.KAKAO_REDIRECT_URI, "code": code,
+            }, timeout=10)
+            token_response.raise_for_status()
+            kakao_access_token = token_response.json().get("access_token")
+            if not kakao_access_token:
+                return Response({"detail": "Kakao did not return an access token"}, status=status.HTTP_400_BAD_REQUEST)
+            profile_response = requests.get("https://kapi.kakao.com/v2/user/me", headers={"Authorization": f"Bearer {kakao_access_token}"}, timeout=10)
+            profile_response.raise_for_status()
+            kakao_id = profile_response.json().get("id")
+        except requests.RequestException:
+            return Response({"detail": "Kakao login request failed"}, status=status.HTTP_502_BAD_GATEWAY)
+        if not kakao_id:
+            return Response({"detail": "Kakao account id is missing"}, status=status.HTTP_400_BAD_REQUEST)
+        user, created = User.objects.get_or_create(username=f"kakao_{kakao_id}", defaults={"password": make_password(None)})
+        UserProfile.objects.get_or_create(user=user, defaults={"is_social_login": True})
+        return set_token_on_response_cookie(user, status.HTTP_201_CREATED if created else status.HTTP_200_OK)
