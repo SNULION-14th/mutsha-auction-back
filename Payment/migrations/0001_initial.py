@@ -1,0 +1,25 @@
+from django.conf import settings
+from django.db import migrations, models
+import django.db.models.deletion
+
+
+class Migration(migrations.Migration):
+    """Original Payment schema already recorded in the existing database."""
+
+    initial = True
+    dependencies = [migrations.swappable_dependency(settings.AUTH_USER_MODEL)]
+    operations = [
+        migrations.CreateModel(
+            name="Payment",
+            fields=[
+                ("id", models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                ("tid", models.CharField(max_length=100)),
+                ("partner_order_id", models.CharField(max_length=100)),
+                ("partner_user_id", models.CharField(max_length=100)),
+                ("point", models.CharField(max_length=100)),
+                ("price", models.IntegerField(default=0)),
+                ("pay_status", models.CharField(default="ready", max_length=100)),
+                ("user", models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name="pay_buyer", to=settings.AUTH_USER_MODEL)),
+            ],
+        ),
+    ]
